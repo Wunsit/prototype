@@ -3,13 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
+
+	"github.com/dgraph-io/dgo"
+	"github.com/dgraph-io/dgo/protos/api"
+	"google.golang.org/grpc"
 )
 
+//User is made to send user info
 type User struct {
 	ID          int      `json:"User_ID"`        //ID
 	Name        string   `json:"User_name"`      //name
@@ -44,32 +47,42 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	// json.NewEncoder(w).Encode(l)
 }
 
-func user(w http.ResponseWriter, r *http.Request) {
+func userMain(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Path[len("/user/"):]
-	// fmt.Fprint(w, r.Method)
-	// fmt.Fprint(w, r.URL.Path)
+	fmt.Fprint(w, r.Method)
+	fmt.Fprint(w, r.URL.Path)
+	fmt.Fprint(w, r.URL.Query())
 	if name == "" {
 		switch r.Method {
 		case http.MethodGet:
 			l := &User{
-				ID:          1,
-				Name:        "naad17",
+				ID:          10000000,
+				Name:        "hello",
 				Firstname:   "Nathalie",
-				Lastname:    "Waldenryd",
-				Email:       "nattis190@hotmail.com",
+				Lastname:    "desune",
+				Email:       "hotstuff@hotmail.com",
 				ProductList: []string{"website", "herro"}}
 			json.NewEncoder(w).Encode(l)
-			base, _ := json.MarshalIndent(l, "", " ")
-			fmt.Println(string(base))
 
-			_ = ioutil.WriteFile("newinfo.json", base, 0644)
 
-			file, err := os.OpenFile("allusers.log", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)
+			// base, _ := json.MarshalIndent(l, "", " ")
+			// fmt.Println(string(base))
+
+			// _ = ioutil.WriteFile("newinfo.json", base, 0644)
+
+			// file, err := os.OpenFile("allusers.log", os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// file.Write(base)
+			op := &api.Operation{
+				Schema: `name: string @index(exact) .`,
+			}
+			err := DB.Alter(r.Context(), op)
 			if err != nil {
 				log.Fatal(err)
 			}
-			file.Write(base)
-			fmt.Fprint(w, "Show User")
+			fmt.Fprint(w, "Show all User")
 		case http.MethodPost:
 			fmt.Fprint(w, "Updating User")
 		case http.MethodPut:
@@ -97,9 +110,71 @@ func user(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func user(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Path[len("/user/"):]
+	fmt.Fprint(w, r.Method)
+	fmt.Fprint(w, r.URL.Path)
+	fmt.Fprint(w, r.URL.Query())
+	if name == "" {
+		switch r.Method {
+		case http.MethodGet:
+			fmt.Fprint(w, "Show all User")
+		case http.MethodPost:
+			fmt.Fprint(w, "Updating User")
+		case http.MethodPut:
+			fmt.Fprint(w, "Creating User")
+		default:
+			fmt.Fprint(w, "404 Error User")
+		}
+	} else {
+		testname, _ := strconv.ParseFloat(name, 64)
+		if testname == 0 {
+			fmt.Println("404")
+		} else {
+			switch r.Method {
+			case http.MethodGet:
+				fmt.Fprint(w, "Show specic user")
+			case http.MethodDelete:
+				fmt.Fprint(w, "Deleting User")
+			default:
+				fmt.Fprint(w, "404 Error User")
+			}
+		}
+		// fmt.Fprint(w, name)
+		// fmt.Fprint(w, "This is a generic welcome message.")
+		// fmt.Println("This is a generic welcome message.")
+	}
+}
+
+func welcome(w http.ResponseWriter, r *http.Request)  {
+	welcomestring := "Hello and welcome to this api, to get to users fo /user/"
+	fmt.Fprint(w, welcomestring)
+}
+
+
+func databasconnetion(addr string) (*dgo.Dgraph, func() error) {
+	conn, err := grpc.Dial(addr, grpc.WithInsecure())
+	if err != nil {
+		log.Fatal("Trying to dial grpc")
+	}
+	dgraphClient := dgo.NewDgraphClient(api.NewDgraphClient(conn))
+
+	fmt.Println("Connected to database")
+	// Check error
+	return dgraphClient, conn.Close
+}
+
+//DB is
+var DB *dgo.Dgraph
+
 func main() {
-	// http.HandleFunc("/", welcome)
+	addr := "localhost:9080"
+	var closer func() error
+	DB, closer = databasconnetion(addr)
+	defer closer()
+
+	http.HandleFunc("/", welcome)
 	http.HandleFunc("/user/", user)
-	// http.HandleFunc("/product/", welcome)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// // http.HandleFunc("/product/", welcome)
+	log.Fatal(http.ListenAndServe(":8081", nil))
 }
